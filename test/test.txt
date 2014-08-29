@@ -1,0 +1,5 @@
+readstr='ACTGACTGACTG'
+readcigar='3M20N7M40N2M'
+readqualitydeteriorationrate=0.005
+indelrate=0.2
+print adderrortoread(readstr,readcigar,readqualitydeteriorationrate,indelrate)         
