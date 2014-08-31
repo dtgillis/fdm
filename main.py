@@ -3,7 +3,7 @@ import os
 
 from optparse import OptionParser
 import scipy.stats.stats as st
-import cvxpy as cvx   
+#import cvxpy as cvx   
 import time
 
 sys.path.insert(0, '..')

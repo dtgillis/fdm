@@ -6,7 +6,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pylab as plt
 from matplotlib.patches import Arc
-import cvxpy as cvx
+#import cvxpy as cvx
         
 class actFile:
     '''Class to index and retrieve data from large files
