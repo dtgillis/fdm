@@ -2,3 +2,4 @@
 .project
 .pydev*
 bin
+.idea
