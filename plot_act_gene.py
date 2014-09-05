@@ -31,13 +31,13 @@ def plot_genes():
         elif opt in ("-o", "--out_dir"):
             out_dir = arg
         elif opt in ("-gl", "--gene_list"):
-            gene_list = arg
+            gene_list = arg.split(',')
         else:
             assert False, "invalid option"
 
     assert act_file is not None, "Specify act file -a <act_file>"
     assert out_dir is not None, "Specify output directory -o <out_dir>"
-    assert gene_list is not None, "Specify gene list -g <gene_list>"
+    assert gene_list is not None, "Specify gene list -g <gene_list> comma seperated"
 
     # make sure the files all exist
     if not os.path.isfile(act_file):
