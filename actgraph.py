@@ -120,7 +120,8 @@ class actFile:
     #    print startnodelist
     #    print endnodelist
     #    print novelnodelist    
-        return (exonlist,intronlist,splicelist,startnodelist,endnodelist,novelnodelist,exonwtlist,intronwtlist,splicewtlist)
+        return exonlist, intronlist, splicelist, startnodelist, endnodelist, novelnodelist,\
+            exonwtlist, intronwtlist, splicewtlist
 
 
     def Toimage(self,gene, imagedir,genomerange=[0,10000000000],highlightnodelist=[],ext='pdf',inwgs=[]):

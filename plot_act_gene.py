@@ -17,7 +17,7 @@ def plot_genes():
 
     argv = sys.argv[1:]
     try:
-        opts, args = getopt.getopt(argv, "a:gl:o:", ["act_file=", "gene_list=", "out_dir="])
+        opts, args = getopt.getopt(argv, "a:g:o:", ["act_file=", "gene_list=", "out_dir="])
     except getopt.GetoptError:
         print 'plot_act_gen.py -a <act_file> -g <gene_list> -o <out_dir>'
         sys.exit(2)
@@ -30,7 +30,7 @@ def plot_genes():
             act_file = arg
         elif opt in ("-o", "--out_dir"):
             out_dir = arg
-        elif opt in ("-gl", "--gene_list"):
+        elif opt in ("-g", "--gene_list"):
             gene_list = arg.split(',')
         else:
             assert False, "invalid option"
