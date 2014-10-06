@@ -7,10 +7,6 @@ from graph_utils import graph_constructor
 import networkx as nx
 import textwrap
 import networkx as nx
-import numpy as np
-import Bio.pairwise2 as pairwise
-from Bio.SubsMat.MatrixInfo import pam120
-from Bio.Seq import translate
 from large_blast import blast_wrapper
 import cPickle
 
@@ -19,63 +15,55 @@ def print_help():
     print 'Use this to sort out the intial graphs and save them and make blastn files'
 
 def get_gene_stats():
-    mouse_act_file_list = None
-    human_act_file_list = None
-    gene_list = None
+    query_act_file = None
+    subject_act_file = None
     out_dir = None
-    mouse_ref = None
-    human_ref = None
+    query_ref = None
+    subject_ref = None
     proj_temp_dir = None
     argv = sys.argv[1:]
     #TODO make more generic ie not mouse or human
     try:
-        opts, args = getopt.getopt(argv, "m:c:g:o:", ["mouse_act_file_list=", "human_act_file_list",
-                                                      "gene_homolog_list=", "out_dir=", "mouse_ref=", "human_ref=",
+        opts, args = getopt.getopt(argv, "", ["query_act_file=", "subject_act_file=",
+                                                      "out_dir=", "query_ref=", "subject_ref=",
                                                       "proj_temp_dir="])
     except getopt.GetoptError:
-        print 'plot_act_gen.py -m <mouse_act_file_list> -h <human_act_file_list> -g <gene_homolog_list> -o <out_dir>'
+        print getopt.GetoptError.msg
+        print 'gene_compare_stage_1.py --query_act_file=<mouse_act_file> --query_ref=<query_ref_files> ' \
+              '--subject_act_file=<human_act_file> --subject_ref=<subject_ref_files> --proj_temp_dir=<tmp_space>'
         sys.exit(2)
 
     for opt, arg in opts:
 
         if opt in ("-h", "--help"):
             print_help()
-        elif opt in ("-m", "--mouse_act_file_list"):
-            mouse_act_file_list = arg.split(',')
-        elif opt in ("-c", "--human_act_file_list"):
-            human_act_file_list = arg.split(',')
+        elif opt in ("-q", "--query_act_file"):
+            query_act_file = arg
+        elif opt in ("-s", "--subject_act_file"):
+            subject_act_file = arg
         elif opt in ("-o", "--out_dir"):
             out_dir = arg
-        elif opt in ("-g", "--gene_homolog_list"):
-            gene_list = arg
-        elif opt in ("--mouse_ref_dir"):
-            mouse_ref = arg
-        elif opt in ("--human_ref_dir"):
-            human_ref = arg
+        elif opt in ("--query_ref"):
+            query_ref = arg
+        elif opt in ("--subject_ref"):
+            subject_ref = arg
         elif opt in ("--proj_temp_dir"):
             proj_temp_dir = arg
         else:
             assert False, "invalid option"
 
-    assert mouse_act_file_list is not None, "Specify mouse act file -m <mouse_act_file>"
+    assert query_act_file is not None, "Specify mouse act file -m <mouse_act_file>"
     assert out_dir is not None, "Specify output directory -o <out_dir>"
-    assert gene_list is not None, "Specify gene homolog list -g <gene_homolog_list>"
-    assert mouse_ref is not None, "Specify mouse reference directory"
-    assert human_ref is not None, "Specify human reference directory"
+    assert query_ref is not None, "Specify query reference directory"
+    assert subject_ref is not None, "Specify subject reference directory"
 
     # make sure the files all exist
-    for act_file in mouse_act_file_list:
-        if not os.path.isfile(act_file):
-            print "{0:s} file does not exist".format(act_file)
-            sys.exit(145)
-    for act_file in human_act_file_list:
-        if not os.path.isfile(act_file):
-            print "{0:s} file does not exist".format(act_file)
-            sys.exit(145)
-
-    if not os.path.isfile(gene_list):
-        print "{0:s} file does not exist".format(gene_list)
-        sys.exit(1000)
+    if not os.path.isfile(query_act_file):
+        print "{0:s} file does not exist".format(query_act_file)
+        sys.exit(145)
+    if not os.path.isfile(subject_act_file):
+        print "{0:s} file does not exist".format(subject_act_file)
+        sys.exit(145)
 
     # make sure the path to outdir exists
     if not os.path.exists(out_dir):
@@ -84,109 +72,103 @@ def get_gene_stats():
         except OSError:
             print "Error making dir {0:s}".format(out_dir)
 
-    # now check gene list is not an empty list
-
-    assert len(mouse_act_file_list) > 0, "mouse act list has size 0, you should add some mice act files?"
-    assert len(human_act_file_list) > 0, "human act list has size 0, you should add some human act files?"
-
-    human_graphs = []
-    human_gene_dict = dict()
-    human_gene_dict_exons = dict()
+    # get subject gene dict made
+    subject_gene_dict = dict()
+    subject_gene_dict_exons = dict()
     graph_counter = 0
-    for act_file in human_act_file_list:
-        human_graph = graph_constructor.MultiGraph(act_file, human_ref)
-        human_graph.create_genome_wide_graph()
-        human_graphs.append(human_graph)
-        sub_graphs = list(nx.connected_component_subgraphs(human_graph.graph, copy=True))
+    subject_graph = graph_constructor.MultiGraph(subject_act_file, subject_ref)
+    subject_graph.create_genome_wide_graph()
+    # get connected componenets
+    sub_graphs = list(nx.connected_component_subgraphs(subject_graph.graph, copy=True))
+    for sub_graph in sub_graphs:
+        key = ""
+        for edge in sub_graph.edges_iter(sub_graph, data=True):
+            attributes = edge[2]
+            type = attributes['type']
+            if type == "exon":
+                key += attributes['seq']
 
-        for sub_graph in sub_graphs:
-            key = ""
-            for edge in sub_graph.edges_iter(sub_graph, data=True):
-                attributes = edge[2]
-                type = attributes['type']
-                if type == "exon":
-                    key += attributes['seq']
-
-            if len(key) > 0:
-                human_gene_dict[graph_counter] = sub_graph
-                human_gene_dict_exons[graph_counter] = key
-                graph_counter += 1
+        if len(key) > 0:
+            subject_gene_dict[graph_counter] = sub_graph
+            subject_gene_dict_exons[graph_counter] = key
+            graph_counter += 1
 
     # dump out the graphs objects
-    act_file_name = human_act_file_list[0].split(os.sep)[-1]
-    cPickle.dump(human_gene_dict, open(proj_temp_dir + os.sep + act_file_name + '.gene_dict.pickle', 'wb'))
-    cPickle.dump(human_gene_dict_exons, open(proj_temp_dir + os.sep + act_file_name + 'gene_dict_exons.pckle', 'wb'))
+    act_file_name = subject_act_file.split(os.sep)[-1]
+    cPickle.dump(subject_gene_dict, open(proj_temp_dir + os.sep + act_file_name + '.gene_dict.pickle', 'wb'))
+    cPickle.dump(subject_gene_dict_exons, open(proj_temp_dir + os.sep + act_file_name + 'gene_dict_exons.pckle', 'wb'))
 
-    #create fasta file
-    out_put = ""
-    for key in human_gene_dict.keys():
-        for edge in human_gene_dict[key].edges_iter(data=True):
+    # create fasta file for db construction
+    out_put = []
+    for key in subject_gene_dict.keys():
+        for edge in subject_gene_dict[key].edges_iter(data=True):
             attributes = edge[2]
             if 'gene' in attributes:
                 gene = attributes['gene']
                 break
 
 
-        out_put+='>human|{0:s}|{1:d}\n'.format(gene, key)
-        exon_sequence = human_gene_dict_exons[key]
-        formated_key = textwrap.wrap(exon_sequence, 80)
-        for element in formated_key:
-            out_put += '{0:s}\n'.format(element)
+        out_put.append('>subject|{0:s}|{1:d}\n'.format(gene, key))
+        exon_sequence = subject_gene_dict_exons[key].lower()
+        out_put.append('{0:s}\n'.format(exon_sequence))
 
     fasta_file_loc = proj_temp_dir + os.sep + act_file_name + '.fasta'
     fasta_file = open(fasta_file_loc, 'w')
-    fasta_file.write(out_put)
+    fasta_file.writelines(out_put)
     fasta_file.close()
 
-    mouse_graphs = []
-    mouse_gene_dict = dict()
-    mouse_gene_dict_exons = dict()
-    for act_file in mouse_act_file_list:
-        mouse_graph = graph_constructor.MultiGraph(act_file, mouse_ref)
-        mouse_graph.create_genome_wide_graph()
-        mouse_graphs.append(mouse_graph)
-        sub_graphs = list(nx.connected_component_subgraphs(mouse_graph.graph, copy=True))
-        out_put = ""
-        key_num = 0
-        for sub_graph in sub_graphs:
-            key = ""
-            for edge in sub_graph.edges_iter(sub_graph, data=True):
-                attributes = edge[2]
-                type = attributes['type']
-                if type == "exon":
-                    key += attributes['seq']
-            if len(key) > 0:
-                mouse_gene_dict[key_num] = sub_graph
-                mouse_gene_dict_exons[key_num] = key
-                key_num += 1
-        for key in mouse_gene_dict.keys():
-            sub_graph = mouse_gene_dict[key]
-            exon_count = 1
-            for edge in sub_graph.edges_iter(data=True):
-                attributes = edge[2]
-                edge_type = attributes['type']
-                if edge_type == "exon":
-                    if len(attributes['seq']) > 0:
-                        out_put += '>mouse|{0:s}|graph-{1:d}|exon-{2:d}\n'.format(attributes['gene'], key, exon_count)
-                        out_put += '{0:s}\n'.format(attributes['seq'].lower())
-                        exon_count += 1
-        act_file_name_2 = act_file.split(os.sep)[-1]
-        cPickle.dump(mouse_gene_dict, open(proj_temp_dir + os.sep + act_file_name_2 + '.gene_dict.picke', 'wb'))
-        cPickle.dump(mouse_gene_dict_exons, open(proj_temp_dir + os.sep + act_file_name_2 + '.gene_dict_exons.pickle', 'wb'))
+    query_gene_dict = dict()
+    query_gene_dict_exons = dict()
+    query_graph = graph_constructor.MultiGraph(query_act_file, query_ref)
+    query_graph.create_genome_wide_graph()
+    # get connected components
+    sub_graphs = list(nx.connected_component_subgraphs(query_graph.graph, copy=True))
+    out_put = []
+    key_num = 0
+    for sub_graph in sub_graphs:
+        key = ""
+        for edge in sub_graph.edges_iter(sub_graph, data=True):
+            attributes = edge[2]
+            type = attributes['type']
+            if type == "exon":
+                key += attributes['seq']
+        if len(key) > 0:
+            query_gene_dict[key_num] = sub_graph
+            query_gene_dict_exons[key_num] = key
+            key_num += 1
+    for key in query_gene_dict.keys():
+        sub_graph = query_gene_dict[key]
+        exon_count = 1
+        for edge in sub_graph.edges_iter(data=True):
+            attributes = edge[2]
+            edge_type = attributes['type']
+            if edge_type == "exon":
+                if len(attributes['seq']) > 0:
+                    out_put.append('>query|{0:s}|graph-{1:d}|exon-{2:d}\n'.format(attributes['gene'], key, exon_count))
+                    out_put.append('{0:s}\n'.format(attributes['seq'].lower()))
+                    exon_count += 1
 
-        fasta_file = open(proj_temp_dir + os.sep + act_file_name_2 + '.fasta', 'w')
-        fasta_file.write(out_put)
-        fasta_file.close()
+    # pickle out the graph dicts
+    act_file_name_2 = query_act_file.split(os.sep)[-1]
+    cPickle.dump(query_gene_dict, open(proj_temp_dir + os.sep + act_file_name_2 + '.gene_dict.picke', 'wb'))
+    cPickle.dump(query_gene_dict_exons, open(proj_temp_dir + os.sep + act_file_name_2 + '.gene_dict_exons.pickle', 'wb'))
+
+    fasta_file = open(proj_temp_dir + os.sep + act_file_name_2 + '.fasta', 'w')
+    fasta_file.writelines(out_put)
+    fasta_file.close()
 
     # create blast files in temp directory
-    blast = blast_wrapper.BlastN(query_file=proj_temp_dir + os.sep + act_file_name_2 + '.fasta',
-                                  subject_file=proj_temp_dir + os.sep + act_file_name + '.fasta',
-                                  num_jobs=1)
+    query_act_file_name = query_act_file.split(os.sep)[-1]
+    subject_act_file_name = subject_act_file.split(os.sep)[-1]
+    blast = blast_wrapper.BlastN(query_file=proj_temp_dir + os.sep + query_act_file_name + '.fasta',
+                                 subject_file=proj_temp_dir + os.sep + subject_act_file_name + '.fasta',
+                                 num_jobs=1)
 
     blast.break_down_query()
     blast.create_subject_db()
 
-    print 'Finished creating subgraphs and nucleotide level blast files'
+    print 'Finished creating subgraphs and nucleotide level blast files for files subject {0:s} and ' \
+          'query {1:s}'.format()
     exit()
     # #os.system(str(cmd))
     #
@@ -199,8 +181,8 @@ def get_gene_stats():
     #     print line
     #     human_graph_key = int(line[0].split("|")[-1])
     #     mouse_graph_key = int(line[1].split("|")[2].strip("graph-"))
-    #     human_graph = human_gene_dict[human_graph_key]
-    #     mouse_graph = mouse_gene_dict[mouse_graph_key]
+    #     human_graph = subject_gene_dict[human_graph_key]
+    #     mouse_graph = query_gene_dict[mouse_graph_key]
     #
     #     #get exon counts for both species
     #     human_exon_list = []

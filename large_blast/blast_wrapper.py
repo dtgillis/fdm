@@ -27,7 +27,7 @@ class BlastN:
                     tmp_line_num -= 1
                     tmp_line = query_file[tmp_line_num]
             else:
-                tmp_line_num = -1
+                tmp_line_num = len(query_file)
 
             chunk_list.append((start_line, tmp_line_num-1))
             out_file = open(self.query_file + '-' + str(i) + '.fasta', 'w')
