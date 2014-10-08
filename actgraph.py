@@ -260,7 +260,7 @@ class actFile:
                 y1=pointplotdict[splice[0]]
                 y2=pointplotdict[splice[1]]
                 center=[woffset,(y1+y2)/2+hoffset]
-                awidth=gwidth/gheight*(y2-y1)
+                awidth=abs(gwidth/gheight*(y2-y1))
                 if awidth>maxawidth:
                     maxawidth=awidth
                 

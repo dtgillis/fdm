@@ -21,12 +21,13 @@ def get_gene_stats():
     query_ref = None
     subject_ref = None
     proj_temp_dir = None
+    blast_jobs = 1
     argv = sys.argv[1:]
     #TODO make more generic ie not mouse or human
     try:
         opts, args = getopt.getopt(argv, "", ["query_act_file=", "subject_act_file=",
                                                       "out_dir=", "query_ref=", "subject_ref=",
-                                                      "proj_temp_dir="])
+                                                      "proj_temp_dir=", "blast_jobs="])
     except getopt.GetoptError:
         print getopt.GetoptError.msg
         print 'gene_compare_stage_1.py --query_act_file=<mouse_act_file> --query_ref=<query_ref_files> ' \
@@ -49,6 +50,8 @@ def get_gene_stats():
             subject_ref = arg
         elif opt in ("--proj_temp_dir"):
             proj_temp_dir = arg
+        elif opt in ("--blast_jobs"):
+            blast_jobs = int(arg)
         else:
             assert False, "invalid option"
 
@@ -96,7 +99,7 @@ def get_gene_stats():
     # dump out the graphs objects
     act_file_name = subject_act_file.split(os.sep)[-1]
     cPickle.dump(subject_gene_dict, open(proj_temp_dir + os.sep + act_file_name + '.gene_dict.pickle', 'wb'))
-    cPickle.dump(subject_gene_dict_exons, open(proj_temp_dir + os.sep + act_file_name + 'gene_dict_exons.pckle', 'wb'))
+    cPickle.dump(subject_gene_dict_exons, open(proj_temp_dir + os.sep + act_file_name + '.gene_dict_exons.pickle', 'wb'))
 
     # create fasta file for db construction
     out_put = []
@@ -150,7 +153,7 @@ def get_gene_stats():
 
     # pickle out the graph dicts
     act_file_name_2 = query_act_file.split(os.sep)[-1]
-    cPickle.dump(query_gene_dict, open(proj_temp_dir + os.sep + act_file_name_2 + '.gene_dict.picke', 'wb'))
+    cPickle.dump(query_gene_dict, open(proj_temp_dir + os.sep + act_file_name_2 + '.gene_dict.pickle', 'wb'))
     cPickle.dump(query_gene_dict_exons, open(proj_temp_dir + os.sep + act_file_name_2 + '.gene_dict_exons.pickle', 'wb'))
 
     fasta_file = open(proj_temp_dir + os.sep + act_file_name_2 + '.fasta', 'w')
@@ -162,13 +165,14 @@ def get_gene_stats():
     subject_act_file_name = subject_act_file.split(os.sep)[-1]
     blast = blast_wrapper.BlastN(query_file=proj_temp_dir + os.sep + query_act_file_name + '.fasta',
                                  subject_file=proj_temp_dir + os.sep + subject_act_file_name + '.fasta',
-                                 num_jobs=1)
+                                 num_jobs=blast_jobs, work_dir=proj_temp_dir)
 
     blast.break_down_query()
     blast.create_subject_db()
+    blast.write_blast_submit_script()
 
     print 'Finished creating subgraphs and nucleotide level blast files for files subject {0:s} and ' \
-          'query {1:s}'.format()
+          'query {1:s}'.format(subject_act_file, query_act_file)
     exit()
     # #os.system(str(cmd))
     #

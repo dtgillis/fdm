@@ -1,14 +1,15 @@
 __author__ = 'dtgillis'
 import os
-
-
+from textwrap import dedent
+import stat
 class BlastN:
 
-    def __init__(self, query_file, subject_file, num_jobs):
+    def __init__(self, query_file, subject_file, num_jobs, work_dir):
 
         self.query_file = query_file
         self.subject_file =subject_file
         self.num_jobs = num_jobs
+        self.work_dir = work_dir
 
     def break_down_query(self):
 
@@ -38,6 +39,61 @@ class BlastN:
     def create_subject_db(self):
         cmd = 'makeblastdb -in ' + self.subject_file + ' -hash_index -dbtype nucl'
         os.system(cmd)
+
+    def write_blast_submit_script(self):
+
+        script_file = work_dir + os.sep + 'blast_query.sh'
+        script_writer = open(script_file, 'w')
+        script_writer.write(dedent('''
+        #!/bin/bash
+        query=$1
+        db=$2
+        blastn -task blastn-short -num_threads 2 -query $query -db $db -outfmt 6 -out $query.blast.out
+        '''))
+        script_writer.close()
+        os.chmod(script_file, stat.S_IXUSR)
+
+        submit_script = self.work_dir + os.sep + 'submit_script.sh'
+        script_writer = open(submit_script, 'w')
+        script_writer.write(dedent('''
+        #!/bin/bash
+        QUERY_PREFIX=''' + self.query_file.split(os.sep)[-1] + '''
+        SUBJECT_DB=''' + self.subject_file.split(os.sep)[-1] + '''
+        for query in $QUERY_PREFIX-*.fasta
+        do
+            bsub -q week -n 2 -R "span[hosts=1]" -o $query.blast.o -e $query.blase.e ./blast_query.sh $query $SUBJECT_DB
+        done;
+        '''))
+        script_writer.close()
+        os.chmod(submit_script, stat.S_IXUSR)
+
+    def submit_blastn_jobs(self):
+
+        try:
+            os.chdir(self.work_dir)
+        except OSError:
+            print OSError.message
+            print 'Error chdir to ' + self.work_dir
+            exit()
+
+        os.system('./submit_script.sh')
+
+
+class TBlastX:
+
+    def __init__(self, query, subject, tmp_dir):
+
+        self.query = query
+        self.subject = subject
+        self.out_file = tmp_dir + os.sep + query.split(os.sep)[-1] + '.tblastx.out'
+
+    def run_tblastx(self):
+
+        cmd = 'tblastx -query {0:s} -subject {1:s} -outfmt 6 -out {2:s} -evalue 2'.format(
+            self.query, self.subject, self.out_file
+        )
+        os.system(cmd)
+
 
 
 
