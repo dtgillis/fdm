@@ -42,7 +42,7 @@ class BlastN:
 
     def write_blast_submit_script(self):
 
-        script_file = work_dir + os.sep + 'blast_query.sh'
+        script_file = self.work_dir + os.sep + 'blast_query.sh'
         script_writer = open(script_file, 'w')
         script_writer.write(dedent('''
         #!/bin/bash
@@ -89,7 +89,7 @@ class TBlastX:
 
     def run_tblastx(self):
 
-        cmd = 'tblastx -query {0:s} -subject {1:s} -outfmt 6 -out {2:s} -evalue 2'.format(
+        cmd = 'tblastx -query {0:s} -subject {1:s} -outfmt 6 -out {2:s} -num_alignments 1 -evalue 1'.format(
             self.query, self.subject, self.out_file
         )
         os.system(cmd)
