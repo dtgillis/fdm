@@ -124,192 +124,192 @@ class actFile:
             exonwtlist, intronwtlist, splicewtlist
 
 
-    def Toimage(self,gene, imagedir,genomerange=[0,10000000000],highlightnodelist=[],ext='pdf',inwgs=[]):
-        
-        ts=self.name.split('/')[-1][:-4]
-        #image rendering constants
-        hconst=30;gwidth=100.0;exonplotdistbasis=10.0;msize=10;hoffset=10;woffset=50
-        
-        if inwgs==[]:
-            wtgraphstruct=self.getwtgraphstruct(gene)    
+def Toimage(self, gene, imagedir, genomerange=[0, 10000000000], highlightnodelist=[], ext='pdf', inwgs=[]):
+
+    ts=self.name.split('/')[-1][:-4]
+    #image rendering constants
+    hconst=30;gwidth=100.0;exonplotdistbasis=10.0;msize=10;hoffset=10;woffset=50
+
+    if inwgs==[]:
+        wtgraphstruct=self.getwtgraphstruct(gene)
+    else:
+        wtgraphstruct=inwgs
+    exonlist,intronlist,splicelist,startnodelist,endnodelist,novelnodelist,exonwtlist,intronwtlist,splicewtlist=wtgraphstruct
+
+    #print zip(exonlist,exonwtlist)
+    #print zip(intronlist,intronwtlist)
+    #print zip(splicelist,splicewtlist)
+    #print startnodelist,endnodelist,novelnodelist
+
+
+    if genomerange!=[0,10000000000]:
+        glabel='%s:%s:%d-%d'%(ts,gene,genomerange[0],genomerange[1])
+    else:
+        glabel='%s:%s'%(ts,gene)
+
+    imgsz=len(exonlist)+len(intronlist)
+    if imgsz>100:
+        message='Image too large for %s. Printing first few exons'%glabel
+        common.printstatus(message,'W',common.func_name(),1)
+        genomerange=[exonlist[0:30][0][0]-1,exonlist[0:30][-1][1]+1]
+        glabel='%s:%s:%d-%d'%(ts,gene,genomerange[0],genomerange[1])
+
+    allpoints=[]
+    for splice in splicelist:
+        if splice[0]<genomerange[0] or splice[1]>genomerange[1]:
+            continue
+        if splice[0] not in allpoints:
+            allpoints.append(splice[0])
+        if splice[1] not in allpoints:
+            allpoints.append(splice[1])
+    for node in startnodelist:
+        if node<genomerange[0] or node>genomerange[1]:
+            continue
+        if node not in allpoints:
+            allpoints.append(node)
+    for node in endnodelist:
+        if node<genomerange[0] or node>genomerange[1]:
+            continue
+        if node not in allpoints:
+            allpoints.append(node)
+    for exon in exonlist:
+        if exon[0]<genomerange[0] or exon[1]>genomerange[1]:
+            continue
+        if (exon[0] not in allpoints) and (exon[0]-1 not in allpoints) and (exon[0]+1 not in allpoints):
+            allpoints.append(exon[0])
+        if (exon[1] not in allpoints) and (exon[1]-1 not in allpoints) and (exon[1]+1 not in allpoints):
+            allpoints.append(exon[1])
+    for exon in intronlist:
+        if exon[0]<genomerange[0] or exon[1]>genomerange[1]:
+            continue
+        if (exon[0] not in allpoints) and (exon[0]-1 not in allpoints) and (exon[0]+1 not in allpoints):
+            allpoints.append(exon[0])
+        if (exon[1] not in allpoints) and (exon[1]-1 not in allpoints) and (exon[1]+1 not in allpoints):
+            allpoints.append(exon[1])
+
+
+    allpoints.sort()
+    #print exonlist
+    #print allpoints
+    pointdistlist=[(allpoints[i]-allpoints[i-1]) for i in range(1,len(allpoints))]
+    mindist=max(exonplotdistbasis,min(pointdistlist))
+    plotdistlist=[math.log(max(x,mindist),mindist) for x in pointdistlist]
+    #equidistant
+    #plotdistlist=[1 for x in pointdistlist]
+    #print sum(plotdistlist)
+    runtotal=0
+    allpointsy=[runtotal]
+    for point in plotdistlist:
+        runtotal+=point
+        allpointsy.append(runtotal*hconst)
+
+    #print allpointsy
+    pointplotdict=dict(zip(allpoints,allpointsy))
+
+    gheight=sum(plotdistlist)*hconst
+    #gwidth=max(gheight/10,100.0)
+    ax = plt.figure(figsize=(4,4*gheight/gwidth)).add_subplot(111)
+    ax.axis('off')
+
+
+    #plot exons
+    for i in range(len(exonlist)):
+        exon=exonlist[i]
+        if exon[0]<genomerange[0] or exon[1]>genomerange[1]:
+            continue
+        if exon[0] in pointplotdict:
+            y1=pointplotdict[exon[0]]
+        elif exon[0]-1 in pointplotdict:
+            y1=pointplotdict[exon[0]-1]
+        elif exon[0]+1 in pointplotdict:
+            y1=pointplotdict[exon[0]+1]
+        if exon[1] in pointplotdict:
+            y2=pointplotdict[exon[1]]
+        elif exon[1]-1 in pointplotdict:
+            y2=pointplotdict[exon[1]-1]
+        elif exon[1]+1 in pointplotdict:
+            y2=pointplotdict[exon[1]+1]
+        ax.plot([woffset,woffset],[y1+hoffset,y2+hoffset],'b-',markersize=msize)
+        ax.text(woffset-1,(y1+y2)/2+hoffset,'%5.1f'%exonwtlist[i],horizontalalignment='right',verticalalignment='center',rotation=270)
+
+    for i in range(len(intronlist)):
+        intron=intronlist[i]
+        if intron[0]<genomerange[0] or intron[1]>genomerange[1]:
+            continue
+        if intron[0] in pointplotdict:
+            y1=pointplotdict[intron[0]]
+        elif intron[0]-1 in pointplotdict:
+            y1=pointplotdict[intron[0]-1]
+        elif intron[0]+1 in pointplotdict:
+            y1=pointplotdict[intron[0]+1]
+        if intron[1] in pointplotdict:
+            y2=pointplotdict[intron[1]]
+        elif intron[1]-1 in pointplotdict:
+            y2=pointplotdict[intron[1]-1]
+        elif intron[1]+1 in pointplotdict:
+            y2=pointplotdict[intron[1]+1]
+        ax.plot([woffset,woffset],[y1+hoffset,y2+hoffset],'c-',markersize=msize)
+        ax.text(woffset-1,(y1+y2)/2+hoffset,'%5.1f'%intronwtlist[i],horizontalalignment='right',verticalalignment='center',rotation=270)
+
+    maxawidth=0
+    for i in range(len(splicelist)):
+        splice=splicelist[i]
+        if splice[0]<genomerange[0] or splice[1]>genomerange[1]:
+            continue
+        if splicewtlist[i]>0:
+            y1=pointplotdict[splice[0]]
+            y2=pointplotdict[splice[1]]
+            center=[woffset,(y1+y2)/2+hoffset]
+            awidth=abs(gwidth/gheight*(y2-y1))
+            if awidth>maxawidth:
+                maxawidth=awidth
+
+    for i in range(len(splicelist)):
+        splice=splicelist[i]
+        if splice[0]<genomerange[0] or splice[1]>genomerange[1]:
+            continue
+        if splicewtlist[i]>0:
+            y1=pointplotdict[splice[0]]
+            y2=pointplotdict[splice[1]]
+            center=[woffset,(y1+y2)/2+hoffset]
+            awidth=gwidth*2/gheight*(y2-y1)*(gwidth/maxawidth)
+            arcs=[Arc(xy=center, width=awidth, height=y2-y1, angle=0, theta1=270, theta2=90,lw=2,color='green',ls='dashed')] # Arc
+            #arcs=[Arc(xy=center, width=awidth, height=y2-y1, angle=0, theta1=270, theta2=90,lw=2,color='green')] # Arc
+            ax.add_artist(arcs[0])
+            ax.text(woffset+awidth/2+1,(y1+y2)/2+hoffset,splicewtlist[i],horizontalalignment='left',verticalalignment='center', rotation=270)
+
+
+
+    #plot nodes
+    #Todo text for points
+    for i in range(len(allpoints)):
+        node=allpoints[i]
+        if node in startnodelist:
+            ax.plot(woffset,allpointsy[i]+hoffset,marker='s',markerfacecolor='k',fillstyle='bottom',markersize=msize)
+        elif node in endnodelist:
+            ax.plot(woffset,allpointsy[i]+hoffset,marker='s',markerfacecolor='k',fillstyle='top',markersize=msize)
+        elif node in novelnodelist:
+            ax.plot(woffset,allpointsy[i]+hoffset,marker='o',markerfacecolor='white',markersize=msize)
         else:
-            wtgraphstruct=inwgs
-        exonlist,intronlist,splicelist,startnodelist,endnodelist,novelnodelist,exonwtlist,intronwtlist,splicewtlist=wtgraphstruct
-        
-        #print zip(exonlist,exonwtlist)
-        #print zip(intronlist,intronwtlist)
-        #print zip(splicelist,splicewtlist)
-        #print startnodelist,endnodelist,novelnodelist
- 
-        
-        if genomerange!=[0,10000000000]:
-            glabel='%s:%s:%d-%d'%(ts,gene,genomerange[0],genomerange[1])
+            ax.plot(woffset,allpointsy[i]+hoffset,marker='o',markerfacecolor='k',fillstyle='full',markersize=msize)
+        if node in highlightnodelist:
+            ax.text(woffset-msize,allpointsy[i]+hoffset,node,horizontalalignment='right',verticalalignment='center',color='red')
         else:
-            glabel='%s:%s'%(ts,gene)
+            ax.text(woffset-msize,allpointsy[i]+hoffset,node,horizontalalignment='right',verticalalignment='center')
 
-        imgsz=len(exonlist)+len(intronlist)
-        if imgsz>100:
-            message='Image too large for %s. Printing first few exons'%glabel
-            common.printstatus(message,'W',common.func_name(),1)   
-            genomerange=[exonlist[0:30][0][0]-1,exonlist[0:30][-1][1]+1]
-            glabel='%s:%s:%d-%d'%(ts,gene,genomerange[0],genomerange[1])
-            
-        allpoints=[]
-        for splice in splicelist:
-            if splice[0]<genomerange[0] or splice[1]>genomerange[1]:
-                continue                  
-            if splice[0] not in allpoints:
-                allpoints.append(splice[0])
-            if splice[1] not in allpoints:
-                allpoints.append(splice[1])        
-        for node in startnodelist:
-            if node<genomerange[0] or node>genomerange[1]:
-                continue                  
-            if node not in allpoints:
-                allpoints.append(node)  
-        for node in endnodelist:
-            if node<genomerange[0] or node>genomerange[1]:
-                continue               
-            if node not in allpoints:
-                allpoints.append(node)     
-        for exon in exonlist:
-            if exon[0]<genomerange[0] or exon[1]>genomerange[1]:
-                continue            
-            if (exon[0] not in allpoints) and (exon[0]-1 not in allpoints) and (exon[0]+1 not in allpoints):
-                allpoints.append(exon[0])
-            if (exon[1] not in allpoints) and (exon[1]-1 not in allpoints) and (exon[1]+1 not in allpoints):
-                allpoints.append(exon[1])             
-        for exon in intronlist:
-            if exon[0]<genomerange[0] or exon[1]>genomerange[1]:
-                continue            
-            if (exon[0] not in allpoints) and (exon[0]-1 not in allpoints) and (exon[0]+1 not in allpoints):
-                allpoints.append(exon[0])
-            if (exon[1] not in allpoints) and (exon[1]-1 not in allpoints) and (exon[1]+1 not in allpoints):
-                allpoints.append(exon[1])            
 
-        
-        allpoints.sort()
-        #print exonlist
-        #print allpoints        
-        pointdistlist=[(allpoints[i]-allpoints[i-1]) for i in range(1,len(allpoints))]
-        mindist=max(exonplotdistbasis,min(pointdistlist))
-        plotdistlist=[math.log(max(x,mindist),mindist) for x in pointdistlist]
-        #equidistant
-        #plotdistlist=[1 for x in pointdistlist]
-        #print sum(plotdistlist)
-        runtotal=0   
-        allpointsy=[runtotal]
-        for point in plotdistlist:
-            runtotal+=point
-            allpointsy.append(runtotal*hconst)
-        
-        #print allpointsy
-        pointplotdict=dict(zip(allpoints,allpointsy))
-        
-        gheight=sum(plotdistlist)*hconst
-        #gwidth=max(gheight/10,100.0)
-        ax = plt.figure(figsize=(4,4*gheight/gwidth)).add_subplot(111)
-        ax.axis('off')
-        
-        
-        #plot exons
-        for i in range(len(exonlist)):
-            exon=exonlist[i]
-            if exon[0]<genomerange[0] or exon[1]>genomerange[1]:
-                continue
-            if exon[0] in pointplotdict:
-                y1=pointplotdict[exon[0]]
-            elif exon[0]-1 in pointplotdict:
-                y1=pointplotdict[exon[0]-1]
-            elif exon[0]+1 in pointplotdict:
-                y1=pointplotdict[exon[0]+1]
-            if exon[1] in pointplotdict:
-                y2=pointplotdict[exon[1]]
-            elif exon[1]-1 in pointplotdict:
-                y2=pointplotdict[exon[1]-1]
-            elif exon[1]+1 in pointplotdict:
-                y2=pointplotdict[exon[1]+1]                
-            ax.plot([woffset,woffset],[y1+hoffset,y2+hoffset],'b-',markersize=msize)
-            ax.text(woffset-1,(y1+y2)/2+hoffset,'%5.1f'%exonwtlist[i],horizontalalignment='right',verticalalignment='center',rotation=270)
-        
-        for i in range(len(intronlist)):
-            intron=intronlist[i]
-            if intron[0]<genomerange[0] or intron[1]>genomerange[1]:
-                continue            
-            if intron[0] in pointplotdict:
-                y1=pointplotdict[intron[0]]
-            elif intron[0]-1 in pointplotdict:
-                y1=pointplotdict[intron[0]-1]
-            elif intron[0]+1 in pointplotdict:
-                y1=pointplotdict[intron[0]+1]
-            if intron[1] in pointplotdict:
-                y2=pointplotdict[intron[1]]
-            elif intron[1]-1 in pointplotdict:
-                y2=pointplotdict[intron[1]-1]
-            elif intron[1]+1 in pointplotdict:
-                y2=pointplotdict[intron[1]+1]                       
-            ax.plot([woffset,woffset],[y1+hoffset,y2+hoffset],'c-',markersize=msize)  
-            ax.text(woffset-1,(y1+y2)/2+hoffset,'%5.1f'%intronwtlist[i],horizontalalignment='right',verticalalignment='center',rotation=270)
-        
-        maxawidth=0
-        for i in range(len(splicelist)):
-            splice=splicelist[i]
-            if splice[0]<genomerange[0] or splice[1]>genomerange[1]:
-                continue            
-            if splicewtlist[i]>0:
-                y1=pointplotdict[splice[0]]
-                y2=pointplotdict[splice[1]]
-                center=[woffset,(y1+y2)/2+hoffset]
-                awidth=abs(gwidth/gheight*(y2-y1))
-                if awidth>maxawidth:
-                    maxawidth=awidth
-                
-        for i in range(len(splicelist)):
-            splice=splicelist[i]
-            if splice[0]<genomerange[0] or splice[1]>genomerange[1]:
-                continue                  
-            if splicewtlist[i]>0:
-                y1=pointplotdict[splice[0]]
-                y2=pointplotdict[splice[1]]
-                center=[woffset,(y1+y2)/2+hoffset]
-                awidth=gwidth*2/gheight*(y2-y1)*(gwidth/maxawidth)                
-                arcs=[Arc(xy=center, width=awidth, height=y2-y1, angle=0, theta1=270, theta2=90,lw=2,color='green',ls='dashed')] # Arc
-                #arcs=[Arc(xy=center, width=awidth, height=y2-y1, angle=0, theta1=270, theta2=90,lw=2,color='green')] # Arc   
-                ax.add_artist(arcs[0])
-                ax.text(woffset+awidth/2+1,(y1+y2)/2+hoffset,splicewtlist[i],horizontalalignment='left',verticalalignment='center', rotation=270)
-            
-            
+    ax.text(0,max(allpointsy)+hoffset+4*msize,glabel,horizontalalignment='left',verticalalignment='center')
+    ax.set_ylim(0, max(allpointsy)+hoffset+100)
+    #ax.set_ylim(100, 200)
+    ax.set_xlim(0, gwidth+woffset)
 
-        #plot nodes
-        #Todo text for points
-        for i in range(len(allpoints)):
-            node=allpoints[i]
-            if node in startnodelist:
-                ax.plot(woffset,allpointsy[i]+hoffset,marker='s',markerfacecolor='k',fillstyle='bottom',markersize=msize)
-            elif node in endnodelist:
-                ax.plot(woffset,allpointsy[i]+hoffset,marker='s',markerfacecolor='k',fillstyle='top',markersize=msize)     
-            elif node in novelnodelist:
-                ax.plot(woffset,allpointsy[i]+hoffset,marker='o',markerfacecolor='white',markersize=msize)    
-            else:
-                ax.plot(woffset,allpointsy[i]+hoffset,marker='o',markerfacecolor='k',fillstyle='full',markersize=msize)  
-            if node in highlightnodelist: 
-                ax.text(woffset-msize,allpointsy[i]+hoffset,node,horizontalalignment='right',verticalalignment='center',color='red')
-            else:
-                ax.text(woffset-msize,allpointsy[i]+hoffset,node,horizontalalignment='right',verticalalignment='center')
- 
-                
-        ax.text(0,max(allpointsy)+hoffset+4*msize,glabel,horizontalalignment='left',verticalalignment='center')
-        ax.set_ylim(0, max(allpointsy)+hoffset+100)
-        #ax.set_ylim(100, 200)
-        ax.set_xlim(0, gwidth+woffset)
-        
-        #plt.show()
-        ax.set_aspect('equal')
-        try:
-            plt.savefig('%s/%s.%s'%(imagedir,glabel.replace(':','__').replace('/','_'),ext),bbox_inches='tight', pad_inches=0.1)  
-        except:
-            message='Image too large for %s'%glabel
-            common.printstatus(message,'W',common.func_name(),1)   
+    #plt.show()
+    ax.set_aspect('equal')
+    try:
+        plt.savefig('%s/%s.%s'%(imagedir,glabel.replace(':','__').replace('/','_'),ext),bbox_inches='tight', pad_inches=0.1)
+    except:
+        message='Image too large for %s'%glabel
+        common.printstatus(message,'W',common.func_name(),1)
 
         
     def getcorrectionwt(self,edgesz, txstend, edgewt, readsz,edgetype):

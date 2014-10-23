@@ -13,6 +13,7 @@ from large_blast import blast_wrapper
 def print_help():
     print 'graph_compare_stage_2'
 
+
 def create_act_file_from_nx(graph, gene_name):
 
     out_act_file = []
@@ -30,6 +31,7 @@ def create_act_file_from_nx(graph, gene_name):
           chrm,edge[2]['type'], start, end, edge[2]['depth'], gene_name))
 
     return out_act_file
+
 
 def get_gene_stats():
     query_pickle_prefix = None
@@ -62,131 +64,62 @@ def get_gene_stats():
 
     # build up and check that our input files now exist.
     assert os.path.exists(proj_temp_dir), "Temp directory does not exist."
-    query_pickle_gene_dict = proj_temp_dir + os.sep + query_pickle_prefix + '.gene_dict.pickle'
-    query_pickle_gene_dict_exons = proj_temp_dir + os.sep + query_pickle_prefix + '.gene_dict_exons.pickle'
+    query_pickle_gene_dict = proj_temp_dir + os.sep + query_pickle_prefix + '.path_dict.pickle'
     assert os.path.isfile(query_pickle_gene_dict), "Query Gene Dict non existent"
-    subject_pickle_gene_dict = proj_temp_dir + os.sep + subject_pickle_prefix + '.gene_dict.pickle'
-    subject_pickle_gene_dict_exons = proj_temp_dir + os.sep + subject_pickle_prefix + '.gene_dict_exons.pickle'
+    subject_pickle_gene_dict = proj_temp_dir + os.sep + subject_pickle_prefix + '.path_dict.pickle'
 
     # load all pickle files
     query_gene_dict = cPickle.load(open(query_pickle_gene_dict, 'rb'))
-    query_gene_dict_exons = cPickle.load(open(query_pickle_gene_dict_exons, 'rb'))
     subject_gene_dict = cPickle.load(open(subject_pickle_gene_dict, 'rb'))
-    subject_gene_dict_exons = cPickle.load(open(subject_pickle_gene_dict_exons, 'rb'))
 
     # read in blast out files
-    blast_results = [line.split('\t') for line in open(blast_out_file, 'r').readlines()]
-    blast_results_sorted = sorted(blast_results, key=lambda blast_line: float(blast_line[10]))
-
+    #blast_results = [line.split('\t') for line in open(blast_out_file, 'r').readlines()]
+    #blast_results_sorted = sorted(blast_results, key=lambda blast_line: float(blast_line[10]))
+    alpha = 1
+    beta = 1
     matches_dict = dict()
-    for line in blast_results_sorted:
-        if float(line[10]) < .001:
-            query_graph = int(line[0].split('|')[2].split('-')[-1])
-            subject_graph = int(line[1].split('|')[-1])
+    log_fit_file = proj_temp_dir + os.sep + query_pickle_prefix + '.log_reg.dat'
+    log_fit_out = []
+    for line in open(blast_out_file, 'r'):
+        line = line.strip(os.sep).split('\t')
+        if float(line[10]) < .01:
+            query_graph = int(line[0].split('|')[1].split('-')[-1])
+            subject_graph = int(line[1].split('|')[1].split('-')[-1])
+            score = float(line[2])*float(line[3])/100.0 - alpha * float(line[4]) - beta * float(line[5])
+            log_fit_out.append('{0:s},{1:s},{2:s},{3:s},{4:s},{5:s}\n'.format(
+                line[0].split('|')[2], line[1].split('|')[2], line[2], line[3], line[4], line[5]))
             if query_graph not in matches_dict:
-                matches_dict[query_graph] = set()
-            matches_dict[query_graph].add(subject_graph)
+                matches_dict[query_graph] = dict()
+                matches_dict[query_graph][subject_graph] = score
+            else:
+                if subject_graph not in matches_dict[query_graph]:
+                    matches_dict[query_graph][subject_graph] = score
+                elif score > matches_dict[query_graph][subject_graph]:
+                    matches_dict[query_graph][subject_graph] = score
+
 
     #print matches_dict
-    digraph_matches = nx.DiGraph()
+    open(log_fit_file, 'w').writelines(log_fit_out)
     print (len(matches_dict.keys()))
     count = 0
+    matches_out = []
     for query_graph_num in matches_dict:
         count += 1
         if count % 100 == 0:
             sys.stdout.write('.')
         if count %1000 == 0:
             sys.stdout.write(os.linesep)
+        query_path = query_gene_dict[query_graph_num]
+        match_list = matches_dict[query_graph_num].items()
+        sorted_match_list = sorted(match_list, key=lambda match: match[1])
+        subject_path = subject_gene_dict[sorted_match_list[-1][0]]
+        query_gene_name = query_path.graph['gene']
+        subject_gene_name = subject_path.graph['gene']
+        matches_out.append('{0:s},{1:d},{2:s},{3:d},{4:f}\n'.format(
+            query_gene_name, query_graph_num, subject_gene_name, sorted_match_list[-1][0], sorted_match_list[-1][1]))
 
-        subject_graph_nums = matches_dict[int(query_graph_num)]
-        query_graph = query_gene_dict[int(query_graph_num)]
-        #one subject fasta per potential matches.
-        query_fasta_list = []
-        query_graph_exons = []
-        for query_edge in query_graph.edges_iter(data=True):
-
-            if query_edge[2]['type'] == 'exon':
-                query_graph_exons.append(query_edge)
-                attributes = query_edge[2]
-                query_fasta_list.append('>subject|graph-{0:d}|{1:s}|{2:d}\n'.format(
-                    query_graph_num, attributes['gene'], len(query_graph_exons)-1))
-                query_fasta_list.append('{0:s}\n'.format(attributes['seq']))
-
-        query_graph.graph['exon_list'] = query_graph_exons
-        subject_fasta_list = []
-
-        for subject_graph_num in subject_graph_nums:
-            #process each query graph
-            subject_graph = subject_gene_dict[subject_graph_num]
-            subject_exon_list = []
-            for subject_edge in subject_graph.edges_iter(data=True):
-                 if subject_edge[2]['type'] == 'exon':
-                    subject_exon_list.append(subject_edge)
-                    attributes = subject_edge[2]
-                    subject_fasta_list.append('>query|graph-{0:d}|{1:s}|{2:d}\n'.format(
-                        subject_graph_num, attributes['gene'], len(subject_exon_list) - 1))
-                    subject_fasta_list.append('{0:s}\n'.format(attributes['seq']))
-            subject_graph.graph['exon_list'] = subject_exon_list
-
-        subject_protein_fasta = proj_temp_dir + os.sep + subject_pickle_prefix + '.stage2.fasta'
-        open(subject_protein_fasta, 'w').writelines(subject_fasta_list)
-        query_protein_fasta = proj_temp_dir + os.sep + query_pickle_prefix + '.stage2.fasta'
-        open(query_protein_fasta, 'w').writelines(query_fasta_list)
-
-        tblastx = blast_wrapper.TBlastX(query=query_protein_fasta, subject=subject_protein_fasta, tmp_dir=proj_temp_dir)
-        tblastx.run_tblastx()
-
-        tblastx_output = [line.split('\t') for line in open(tblastx.out_file, 'r')]
-
-        sorted_tblastx_output = sorted(tblastx_output, key=lambda blast_line: float(blast_line[10]))
-
-        matched_exons = []
-
-        weights = dict()
-        for line in sorted_tblastx_output:
-
-            if float(line[10]) < .01:
-
-                tmp_query_graph_num = int(line[0].split('|')[1].split('-')[-1])
-                tmp_subject_graph_num = int(line[1].split('|')[1].split('-')[-1])
-                weight = float(line[-1].strip(os.linesep))
-                if not digraph_matches.has_edge(tmp_query_graph_num, tmp_subject_graph_num):
-                    digraph_matches.add_edge(tmp_query_graph_num, tmp_subject_graph_num, weight=weight)
-                else:
-                    digraph_matches[tmp_query_graph_num][tmp_subject_graph_num]['weight'] += weight
-
-
-    overall_mapping = []
-    for query_graph_num in matches_dict:
-        tmp_edge = None
-        for edge in digraph_matches.edges([query_graph_num], data=True):
-            if edge[0] == query_graph_num:
-                if tmp_edge == None:
-                    tmp_edge = edge
-                else:
-                    if tmp_edge[2]['weight'] < edge[2]['weight']:
-                        tmp_edge = edge
-
-        if tmp_edge is not None:
-            overall_mapping.append([query_graph_num, tmp_edge[1], tmp_edge[2]['weight']])
-        else:
-            overall_mapping.append([query_graph_num, None, 0.0])
-
-    matching_out = []
-    for mapping in overall_mapping:
-
-        query_gene = query_gene_dict[mapping[0]].graph['exon_list'][0][2]['gene']
-        if mapping[1] is not None:
-            subject_graph_gene = subject_gene_dict[mapping[1]].graph['exon_list'][0][2]['gene']
-        else:
-            subject_graph_gene = 'None found'
-            mapping[1] = 'None'
-
-        matching_out.append('{0:s},{1:s},{2:s},{3:s},{4:f}\n'.format(
-            query_gene, str(mapping[0]), subject_graph_gene, str(mapping[1]), mapping[2]
-        ))
-
-    open(proj_temp_dir + os.sep + 'matching.out.dat', 'w').writelines(matching_out)
+    sorted_matches_out = sorted(matches_out, key=lambda match: match[-1].strip(os.linesep), reverse=True)
+    open(proj_temp_dir + os.sep + 'matching.out.a{0:1.1f}-b{1:1.1f}.dat'.format(alpha, beta), 'w').writelines(sorted_matches_out)
 
 
 

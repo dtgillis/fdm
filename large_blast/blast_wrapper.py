@@ -2,7 +2,9 @@ __author__ = 'dtgillis'
 import os
 from textwrap import dedent
 import stat
-class BlastN:
+
+
+class TBlastXBig:
 
     def __init__(self, query_file, subject_file, num_jobs, work_dir):
 
@@ -35,7 +37,6 @@ class BlastN:
             out_file.writelines(query_file[start_line:tmp_line_num])
             start_line = tmp_line_num
 
-
     def create_subject_db(self):
         cmd = 'makeblastdb -in ' + self.subject_file + ' -hash_index -dbtype nucl'
         os.system(cmd)
@@ -48,10 +49,10 @@ class BlastN:
         #!/bin/bash
         query=$1
         db=$2
-        blastn -task blastn-short -num_threads 2 -query $query -db $db -outfmt 6 -out $query.blast.out
+        tblastx -num_threads 2 -query $query -db $db -outfmt 6 -out $query.blast.out -evalue .01
         '''))
         script_writer.close()
-        os.chmod(script_file, stat.S_IXUSR)
+        os.chmod(script_file,)
 
         submit_script = self.work_dir + os.sep + 'submit_script.sh'
         script_writer = open(submit_script, 'w')
@@ -66,17 +67,6 @@ class BlastN:
         '''))
         script_writer.close()
         os.chmod(submit_script, stat.S_IXUSR)
-
-    def submit_blastn_jobs(self):
-
-        try:
-            os.chdir(self.work_dir)
-        except OSError:
-            print OSError.message
-            print 'Error chdir to ' + self.work_dir
-            exit()
-
-        os.system('./submit_script.sh')
 
 
 class TBlastX:
